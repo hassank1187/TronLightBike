@@ -1,0 +1,192 @@
+
+module ps2c (
+	// Inputs
+	CLOCK_50,
+	KEY,
+
+	// Bidirectionals
+	PS2_CLK,
+	PS2_DAT,
+	
+	// Outputs
+	HEX0,
+	HEX1,
+	HEX2,
+	HEX3,
+	HEX4,
+	HEX5,
+	HEX6,
+	HEX7,
+	LEDR
+);
+
+/*****************************************************************************
+ *                           Parameter Declarations                          *
+ *****************************************************************************/
+
+
+/*****************************************************************************
+ *                             Port Declarations                             *
+ *****************************************************************************/
+
+// Inputs
+input				CLOCK_50;
+input		[3:0]	KEY;
+
+// Bidirectionals
+inout				PS2_CLK;
+inout				PS2_DAT;
+
+// Outputs
+output		[6:0]	HEX0;
+output		[6:0]	HEX1;
+output		[6:0]	HEX2;
+output		[6:0]	HEX3;
+output		[6:0]	HEX4;
+output		[6:0]	HEX5;
+output		[6:0]	HEX6;
+output		[6:0]	HEX7;
+output		[7:0]	LEDR;
+
+/*****************************************************************************
+ *                 Internal Wires and Registers Declarations                 *
+ *****************************************************************************/
+
+// Internal Wires
+wire		[7:0]	ps2_key_data;
+wire				ps2_key_pressed;
+
+// Internal Registers
+reg			[7:0]	last_data_received;
+
+// State Machine Registers
+
+/*****************************************************************************
+ *                         Finite State Machine(s)                           *
+ *****************************************************************************/
+
+
+/*****************************************************************************
+ *                             Sequential Logic                              *
+ *****************************************************************************/
+
+always @(posedge CLOCK_50)
+begin
+	if (KEY[0] == 1'b0)
+		last_data_received <= 8'h00;
+	else if (ps2_key_pressed == 1'b1)
+		last_data_received <= ps2_key_data;
+end
+
+/*****************************************************************************
+ *                            Combinational Logic                            *
+ *****************************************************************************/
+
+assign HEX2 = 7'h7F;
+assign HEX3 = 7'h7F;
+assign HEX4 = 7'h7F;
+assign HEX5 = 7'h7F;
+assign HEX6 = 7'h7F;
+assign HEX7 = 7'h7F;
+
+/*****************************************************************************
+ *                              Internal Modules                             *
+ *****************************************************************************/
+
+PS2_Controller PS2 (
+	// Inputs
+	.CLOCK_50				(CLOCK_50),
+	.reset				(~KEY[0]),
+
+	// Bidirectionals
+	.PS2_CLK			(PS2_CLK),
+ 	.PS2_DAT			(PS2_DAT),
+
+	// Outputs
+	.received_data		(ps2_key_data),
+	.received_data_en	(ps2_key_pressed)
+);
+
+Hexadecimal_To_Seven_Segment Segment0 (
+	// Inputs
+	.hex_number			(last_data_received[3:0]),
+
+	// Bidirectional
+
+	// Outputs
+	.seven_seg_display	(HEX0)
+);
+
+Hexadecimal_To_Seven_Segment Segment1 (
+	// Inputs
+	.hex_number			(last_data_received[7:4]),
+
+	// Bidirectional
+
+	// Outputs
+	.seven_seg_display	(HEX1)
+);
+
+ps2tocontrol (
+.last_data_received(last_data_received[7:0]),
+.resetn(KEY[0]),
+.clk(CLOCK_50),
+.to_game({LEDR[7],LEDR[6],LEDR[5],LEDR[4],LEDR[3],LEDR[2],LEDR[1],LEDR[0]})
+
+);
+
+endmodule
+
+module ps2tocontrol (
+last_data_received,
+clk,
+resetn,
+to_game);
+
+input [7:0] last_data_received;
+input resetn;
+input clk;
+reg [7:0] holder;
+output reg [7:0] to_game;
+
+
+always@(posedge clk or negedge resetn)
+begin
+
+	if(!resetn)
+
+begin
+		holder <= 8'b00000000;
+		to_game <= 8'b00000000;
+end
+
+	else
+
+	if(last_data_received != 8'hF0)
+
+begin
+		holder <= last_data_received;
+		to_game <= 8'b00000000;
+
+end
+
+	else //if(last_data_received == 8'hF0)
+
+begin
+		case(holder)
+		8'h1D: to_game 		<= 8'b10000000; //w
+		8'h1C: to_game 		<= 8'b01000000; //a
+		8'h1B: to_game 		<= 8'b00100000; //s
+		8'h23: to_game 		<= 8'b00010000; //d
+		8'h43: to_game 		<= 8'b00001000; //i
+		8'h3B: to_game 		<= 8'b00000100; //j
+		8'h42: to_game 		<= 8'b00000010; //k
+		8'h4B: to_game 		<= 8'b00000001; //l
+		default: to_game 		<= 8'b00000000;
+		endcase
+end
+
+	
+end
+
+endmodule
